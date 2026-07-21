@@ -1,0 +1,57 @@
+# Сборка серверного образа → ghcr.io (бесплатно на публичном репозитории).
+# Запуск: вручную (кнопка Run workflow) или автоматически при правке server/ или Dockerfile.
+name: build-image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['server/**', 'Dockerfile', '.github/workflows/build-image.yml', 'config/stress_dict.yaml']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # пуш в ghcr.io по встроенному GITHUB_TOKEN — Docker Hub не нужен
+    steps:
+      - name: Освободить диск раннера и отдать его докеру (база vllm-omni огромна)
+        uses: easimon/maximize-build-space@v10
+        with:
+          root-reserve-mb: 2048
+          swap-size-mb: 128
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+          build-mount-path: '/var/lib/docker/'   # весь большой LVM — под слои buildkit
+
+      - name: Перезапустить докер на новом хранилище
+        run: sudo service docker restart
+
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Логин в ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Сборка и пуш
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/z8k4q1w9:latest
+            ghcr.io/${{ github.repository_owner }}/z8k4q1w9:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+# ПОСЛЕ ПЕРВОЙ СБОРКИ (один раз, руками):
+# github.com → профиль → Packages → audiobook-tts → Package settings →
+# Change visibility → Public. Иначе Vast не сможет тянуть образ без логина.

@@ -1,0 +1,14 @@
+# Публичный репозиторий = ТОЛЬКО то, что нужно для сборки образа.
+# Всё остальное (конфиг с ключами, книги, озвучки, venv) — никогда не попадает в git.
+/*
+!/.gitignore
+!/.gitattributes
+!/Dockerfile
+!/README.md
+!/.github/
+!/server/
+!/config/
+/config/*
+!/config/stress_dict.yaml
+__pycache__/
+*.pyc
