@@ -985,7 +985,11 @@ def start_vllm_engine(ref_wav: str, ref_text: str) -> None:
     logf = open(VLLM_LOG, "ab")
     try:
         proc = subprocess.Popen(
-            [vllm_bin, "serve", MODEL_ID, "--omni", "--port", str(VLLM_PORT)],
+            # --allowed-local-media-path: разрешить vLLM читать локальные файлы
+            # (ref_audio=file:///workspace/ref.wav) — без него HTTP 400
+            # "Cannot load local files" (поймано на живом тесте 22.07)
+            [vllm_bin, "serve", MODEL_ID, "--omni", "--port", str(VLLM_PORT),
+             "--allowed-local-media-path", str(WORK_DIR)],
             stdout=logf, stderr=subprocess.STDOUT, cwd=str(WORK_DIR),
             start_new_session=True)  # своя группа — гасим вместе с воркерами-детьми
     finally:
