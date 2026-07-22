@@ -334,7 +334,11 @@ def build_vllm_payload(text: str, language: str, voice_mode: str,
     if voice_mode == "named":
         payload["voice"] = VLLM_VOICE_NAME
     else:
-        payload["ref_audio"] = ref_wav
+        # vLLM-omni ждёт ref_audio как URI (file://...), а не голый путь — иначе
+        # HTTP 400 "ref_audio must be a URL/base64/file URI" (поймано на живом тесте 22.07).
+        from pathlib import Path as _P
+        payload["ref_audio"] = (ref_wav if "://" in ref_wav
+                                else _P(ref_wav).absolute().as_uri())
         payload["ref_text"] = ref_text
     if temperature is not None:
         payload["temperature"] = float(temperature)
@@ -1777,9 +1781,12 @@ def _selftest_vllm_payload() -> None:
                   "language": "Russian", "voice": VLLM_VOICE_NAME}, p1
     p2 = build_vllm_payload("Привет, мир.", "Russian", "per_request",
                             "/workspace/ref.wav", "эталонный текст")
+    from pathlib import Path as _P
+    exp_uri = _P("/workspace/ref.wav").absolute().as_uri()  # file://... (vLLM-omni требует URI)
     assert p2 == {"model": MODEL_ID, "input": "Привет, мир.",
-                  "language": "Russian", "ref_audio": "/workspace/ref.wav",
+                  "language": "Russian", "ref_audio": exp_uri,
                   "ref_text": "эталонный текст"}, p2
+    assert p2["ref_audio"].startswith("file://"), p2
     # temperature (ретраи ASR-QC): появляется в payload только когда задана
     p3 = build_vllm_payload("Т.", "Russian", "named", temperature=0.945)
     assert p3["temperature"] == 0.945 and "temperature" not in p1, p3
