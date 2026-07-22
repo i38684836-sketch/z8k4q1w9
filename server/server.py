@@ -757,10 +757,15 @@ def prepare_reference() -> tuple:
     duration = wav_duration_s(ref_full)
     log("Сэмпл: %.1f c" % duration)
 
-    # 2. Транскрипция faster-whisper с пословными таймстемпами
-    log("Транскрибирую сэмпл (faster-whisper small, cuda, float16)...")
+    # 2. Транскрипция faster-whisper с пословными таймстемпами.
+    # Устройство из env REF_WHISPER_DEVICE (default cpu): база vllm-omni на CUDA 13,
+    # а ctranslate2-колёса ждут libcublas.so.12 (CUDA 12) — на GPU падает. CPU int8
+    # надёжен и для короткого сэмпла (~15-150 c) быстр (одноразово на старте сервера).
+    dev = os.environ.get("REF_WHISPER_DEVICE", "cpu")
+    ct = "float16" if dev == "cuda" else "int8"
+    log("Транскрибирую сэмпл (faster-whisper small, %s, %s)..." % (dev, ct))
     from faster_whisper import WhisperModel  # тяжёлый импорт — только здесь
-    wm = WhisperModel("small", device="cuda", compute_type="float16")
+    wm = WhisperModel("small", device=dev, compute_type=ct)
     segments, _info = wm.transcribe(str(ref_full), language="ru",
                                     word_timestamps=True)
     words = []
